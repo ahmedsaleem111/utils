@@ -8,7 +8,7 @@ import time
 
 from datetime import datetime
 
-from utilities.array_utilities import *
+from utils.array_utilities import *
 
 
 
