@@ -21,6 +21,19 @@ complex_types = [complex,np.complex_,np.complex64,np.complex128]
 num_types = [*int_types,*float_types,*complex_types]
 
 
+''' Round numbers '''
+r1 = lambda n: round(n, 1)
+r2 = lambda n: round(n, 2)
+r3 = lambda n: round(n, 3)
+r4 = lambda n: round(n, 4)
+r5 = lambda n: round(n, 5)
+r6 = lambda n: round(n, 6)
+r7 = lambda n: round(n, 7)
+r8 = lambda n: round(n, 8)
+r9 = lambda n: round(n, 9)
+r10 = lambda n: round(n, 10)
+
+
 '''
 
 Array (Numpy Arrays) Operations
@@ -42,10 +55,38 @@ def is_any(obj, *items):
     return False
 
 
+''' will check if input is a 2 array (numpy shape (2,)); transposing has no effect '''
 def is_2_array(p):
     if isinstance(p, np.ndarray): # checks if its array
         if len(p.shape) == 1: # checks if it has one dimension
             if len(p) == 2: return True # checks if it is size 2
+    return False
+
+
+''' will check if input is a 2 array (numpy shape (2,)) of only real non-complex types; transposing has no effect '''
+def is_2_real_array(p):
+    if is_2_array(p):
+        if isinstance(p[0], tuple(non_complex_types)) and \
+            isinstance(p[1], tuple(non_complex_types)):
+            return True
+    return False
+
+
+''' will check if input is a 3 array (numpy shape (3,)); transposing has no effect '''
+def is_3_array(p):
+    if isinstance(p, np.ndarray): # checks if its array
+        if len(p.shape) == 1: # checks if it has one dimension
+            if len(p) == 3: return True # checks if it is size 2
+    return False
+
+
+''' will check if input is a 3 array (numpy shape (3,)) of only real non-complex types; transposing has no effect '''
+def is_3_real_array(p):
+    if is_3_array(p):
+        if isinstance(p[0], tuple(non_complex_types)) and \
+            isinstance(p[1], tuple(non_complex_types)) and \
+            isinstance(p[2], tuple(non_complex_types)):
+            return True
     return False
 
 
@@ -64,13 +105,12 @@ def is_Nx2_array(v):
     return False
 
 
-''' will check if input is a N x 3 array (numpy shape (N,2))'''
+''' will check if input is a N x 3 array (numpy shape (N,3))'''
 def is_Nx3_array(v):
     if isinstance(v, np.ndarray): # checks if its array
         if len(v.shape) == 2: # checks if it has two dimensions
             if v.shape[1] == 3: return True # checks if second dimension is size 3
     return False
-
 
 
 ''' will append a third column with ones; useful to multiply with 3x3 matrices '''
@@ -744,6 +784,28 @@ def pairs_between(x1, y1, x2, y2, *p, x1_bound=True, y1_bound=True, x2_bound=Tru
     pass
 
 
+# will return array with True everywhere r is within a, b (False elsewhere)
+''' needs thorough check for all inputs '''
+def arraysBetween(r, a, b, startClose=True, endClose=True):
+    if startClose: lb = np.greater_equal(r, a)
+    else: lb = np.greater(r, a)
+    if endClose: ub = np.less_equal(r, b)
+    else: ub = np.less(r, b)  
+
+    return np.logical_and(lb, ub)      
+
+
+# will return array with True everywhere r is "almost" within a, b (False elsewhere)
+''' needs thorough check for all inputs '''
+def arraysBetweenAlmost(r, a, b, startClose=True, endClose=True, rtol=0, atol=1e-9):
+    if startClose: lb = np.logical_or(np.greater(r, a), np.isclose(r, a, rtol=rtol, atol=atol))
+    else: lb = np.logical_and(np.greater(r, a), np.logical_not(np.isclose(r, a, rtol=rtol, atol=atol))) 
+    if endClose: ub = np.logical_or(np.less(r, b), np.isclose(r, b, rtol=0, atol=atol))
+    else: ub = np.logical_and(np.less(r, b), np.logical_not(np.isclose(r, b, rtol=rtol, atol=atol))) 
+
+    return np.logical_and(lb, ub) 
+
+
 # finds scale over specified duration based on scale over reference duration
 def scale_per(r, tr, ts):
     return np.exp(ts*np.log(r)/tr)
@@ -1042,8 +1104,7 @@ def scalerp_func(s0, s1, t, chk=False):
         if not isinstance(s0, tuple(non_complex_types)): raise TypeError(err_msg)
         if not isinstance(s1, tuple(non_complex_types)): raise TypeError(err_msg)
 
-    if is_N_array(t) or isinstance(t, tuple(non_complex_types)): return s0+(s1-s0)*t
-    else: raise TypeError('t can only be a real number or an N array.')
+    return s0+(s1-s0)*t # needs a check for t (can be any array of real numbers within [0, 1])
 
 
 def scalerp_lerp_wrapper(s0, s1):
@@ -2350,6 +2411,3 @@ def wind(ring, vs):
     
     #Return new ring
     return np.array(ring)
-
-
-
