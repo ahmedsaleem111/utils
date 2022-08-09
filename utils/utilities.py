@@ -7,6 +7,7 @@ import glob
 import time
 
 from datetime import datetime
+from typing import Type
 
 from utils.array_utilities import *
 
@@ -36,6 +37,21 @@ def isinstances(obj, types):
     for type_ in types:
         if isinstance(obj, type_): return True
     return False
+
+
+''' will check if input "func" is a lambda function '''
+def islambda(func):
+    if callable(func):
+        if func.__name__ == "<lambda>":
+            return True
+    return False
+
+
+''' will return the number of input arguments of a lambda func '''
+def lambda_argsCount(func):
+    if islambda(func):
+        return func.__code__.co_argcount
+    else: raise TypeError('Input "func" must be a lambda function.')
 
 
 '''
