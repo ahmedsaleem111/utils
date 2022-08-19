@@ -5,6 +5,9 @@ import re
 import os
 import glob
 import time
+import secrets
+import string
+import hashlib
 
 from datetime import datetime
 from typing import Type
@@ -170,11 +173,44 @@ def rrand_vec(start,end,n,chk=None):
     return np.random.rand(n)*abs(end - start) + start
 
 
+''' will return a random integer with N digits '''
+def randomDigits(n):
+    range_start = 10**(n-1)
+    range_end = (10**n)-1
+    return np.random.randint(range_start, range_end)
+
+
+''' will return a random string with N characters (any ascii) '''
+def randomString(n):
+    return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(n))
+
+
+
 def qrand_gen(n):
     if isinstance(n,int):
         return np.round(n*np.random.rand(1)+0.5)-1
     else:
         print('Input must be an "int".')
+
+
+'''
+
+Cryptography
+
+'''
+
+''' sha256 encoding of a string-key '''
+def sha256_encode(key):
+    if isinstance(key, str): return hashlib.sha256(key.encode()).hexdigest()
+    else: raise TypeError('Input must be a string.')
+
+
+''' Verifying if string key belongs to the same sha256 "hash_" (checking with "hexdigest" of it) '''
+def sha256_verify(hash_, key):
+    if not isinstance(hash_, str): raise TypeError('"hash_" must be a "str" (hexdigest of sha256 function)')
+    if not isinstance(key, str): raise TypeError('"key" must be a "str".')
+
+    return hash_ == hashlib.sha256(key.encode()).hexdigest()
 
 
 '''
@@ -192,13 +228,13 @@ def at_least_one(type_, *objs):
 
 # Will return True if has duplicates, else false
 def has_duplicates(l):
-    assert isinstance(l, list)
+    if not isinstance(l, list): raise TypeError('Input must be a list.')
     return len(l)!=len(set(l))
 
 
 # Remove all duplicates from list (if order not a concern)
 def remove_all_duplicates(l):
-    assert isinstance(l, list)
+    if not isinstance(l, list): raise TypeError('Input must be a list.')
     return list(set(l))
 
 # Delete all empty lines:
