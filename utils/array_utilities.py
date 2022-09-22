@@ -1,5 +1,6 @@
 import itertools as itr
 import math
+import copy
 from collections import deque
 
 import numpy as np
@@ -654,22 +655,30 @@ def max_y(v):
 # let v be a N x 2 array
 # returns the point with first instance of minimum x-coordinate
 def Nx2_min_x(v):
-    return v[v[:, 0]==min(v[:, 0]), :]
+    pts = v[v[:, 0]==min(v[:, 0]), :]
+    if len(pts)>1: return pts[0]
+    else: return pts
 
 # let v be a N x 2 array
 # returns the point with  first instance of minimum y-coordinate
 def Nx2_min_y(v):
-    return v[v[:, 1]==min(v[:, 1]), :]
+    pts = v[v[:, 1]==min(v[:, 1]), :]
+    if len(pts)>1: return pts[0]
+    else: return pts
 
 # let v be a N x 2 array
 # returns the point with  first instance of maximum x-coordinate
 def Nx2_max_x(v):
-    return v[v[:, 0]==max(v[:, 0]), :]
+    pts = v[v[:, 0]==max(v[:, 0]), :]
+    if len(pts)>1: return pts[0]
+    else: return pts
 
 # let v be a N x 2 array
 # returns the point with  first instance of maximum y-coordinate
 def Nx2_max_y(v):
-    return v[v[:, 1]==max(v[:, 1]), :]
+    pts = v[v[:, 0]==min(v[:, 0]), :]
+    if len(pts)>1: return pts[0]
+    else: return pts
 
 # lets arrs be 1D size-N arrays (all same size)
 # will output a 1D size-N array with elements being the minimum of 
@@ -1038,6 +1047,55 @@ def N_segments_intersect(segs, chk=None):
     for pr in itr.combinations(segs, 2):
         if segments_intersect(*pr[0],*pr[1]): return True
     return False
+
+
+''' NEEDS UNITTEST... '''
+''' will take variable shapes (as Nx2 arrays; arrs) and resize/reposition them
+    such they're in constructed tiles. Count of shapes must be <= size of tiles.
+'''
+''' All Shapes will be positioned so that their centroid is at the center of 
+    their respective tile '''
+''' bx, by are bottom-left position of tiling '''
+''' w is width of tiling '''
+''' h is height of tiling '''
+''' rows is number of rows in tiling '''
+''' cols is number of columns in tiling '''
+''' rw is the width of row (if specified, will override w to rw*cols) '''
+''' ch is the height of columns (if specified, will override to h to ch*rows '''
+def shapes_tile(*arrs, bx, by, w, h, rows, cols, rw=None, ch=None):
+    # input checks later...
+    if not rw is None: w = rw*cols
+    if not ch is None: h = ch*rows
+
+    if len(arrs)>rows*cols:
+        raise ValueError('number of shapes (length of "arrs") must be less than size of tiling (rows*cols)')
+
+    dw, dh = w/cols, h/rows
+    cx, cy = bx+dw, by+dh
+    ctr=0
+    shapes = []
+    for i in range(0, rows-1):
+        for k in range(0, cols-1):
+            if ctr==len(arrs): return shapes
+
+            shape = copy.deepcopy(arrs[ctr])
+            shape = Nx2_to_Nx3(shape)
+
+            [prev_cx, prev_cy] = centroid(shape)
+            shape = np.matmul(shape, transT_3x3(prev_cx*-1, prev_cy*-1)) # shift to origin about point
+            shape = np.matmul(shape, transT_3x3(cx, cy)) # shift to new center
+
+            shape = Nx3_to_Nx2(shape)
+            shapes.append(shape)            
+            ctr+=1
+            cx+=dw
+        cy+=dh
+
+
+''' will take a shape (as Nx2 array) and convert it to an SVG path string'''
+def shape_to_SVG_paths(shape): 
+    # chk later 
+    return ' '.join(['%s%d %d' % (['M', 'L'][i>0], x, y) for i, [x, y] in enumerate(shape)])
 
 
 '''********************************************************************
