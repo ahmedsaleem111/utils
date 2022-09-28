@@ -932,6 +932,20 @@ Class/Instance (Object) Operations
 
 '''
 
+''' Will return ALL base classes of a class (and not just of the immediate parent) '''
+def get_all_bases(cls):
+    all_ = []
+
+    def bases(in_):            
+        cls_bases = in_.__bases__
+        for base_cls in cls_bases:
+            all_.append(base_cls)
+            bases(base_cls)
+
+    bases(cls)
+    return all_
+    
+
 '''
 Setting multiple attributes of an object at once using key-word arguments
 i.e. as:
