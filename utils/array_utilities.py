@@ -1234,10 +1234,10 @@ def c_bezier_wrapper(p0, p1, p2, p3):
 def logistic_func(L, k, t0, t, chk=False):
     err_msg = 'L, k, and t0 must be real numbers.'
     if chk:
-        if not isinstance(L, non_complex_types): raise TypeError(err_msg)
-        if not isinstance(k, non_complex_types): raise TypeError(err_msg)
-        if not isinstance(t0, non_complex_types): raise TypeError(err_msg)
-        if not (isinstance(t, non_complex_types) or is_N_array(t)):
+        if not isinstance(L, tuple(non_complex_types)): raise TypeError(err_msg)
+        if not isinstance(k, tuple(non_complex_types)): raise TypeError(err_msg)
+        if not isinstance(t0, tuple(non_complex_types)): raise TypeError(err_msg)
+        if not (isinstance(t, tuple(non_complex_types)) or is_N_array(t)):
             raise TypeError('t must only be a real numbe or an N array.')
 
     return L/(1 + np.exp(-k*(t-t0)))
@@ -1422,6 +1422,91 @@ def arc_start_end_ang_func(s, e, ang, t, chk=False):
         return arc_center_start_ang_func(c, s, ang, t)
 
 
+
+''' 
+Will upsample the points of a curve (Nx2 array) by
+adding new points between existing points based on the spread
+and interpolation methods. N is number of desired points
+of the output curve. For this, N must be >= the number
+of points of input curve. If N equals number of input points,
+then output curve is same as input. If "closePath" is True
+then first point will also be treated as final point
+
+Spreads:
+- 'uniform': will add points uniformly over complete perimeter 
+    (essentially based on total arc-length)
+Interpolations:
+-'linear'
+
+'''
+'''
+Need to optimize to eliminate while loop...
+'''
+def upSampleCurve(v, N=1000, spread='uniform', interpolation='linear', closePath=False):
+    if not is_Nx2_array(v): raise TypeError('"v" must be a Nx2 array.')
+    if len(v)<2: raise ValueError('"v" must have at least 2-points for up-sampling to apply.')
+    if not isinstance(N, tuple(int_types)): raise TypeError('"N" must be an integer.')
+    if N<len(v): raise ValueError('"N" must be >= number of input points.')
+    if not isinstance(closePath, bool): raise TypeError('"closePath" must be a bool (True or False).')
+
+    if closePath: v = np.vstack((v, v[0])) # first point is also final point for closed path
+
+    add_N = N - len(v) # number of points to add
+    if spread=='uniform':
+        if interpolation=='linear':
+            if add_N == 0: return v                     
+            else:
+                arclen = arc_length(v) # arc-length of perimeter
+
+                arclens = np.linspace(0, 1, add_N+2)[1:add_N+1]*arclen # arc-lengths of new sub-perimeters (from first point those new points)
+
+                sampling = True
+                sample = 0 # sample index of points to add
+                ind = 1 # point index of existing (input) curve
+                vo = v[0] # initializing output curve (vo)
+                
+                while sampling:
+
+                    sample_len = arclens[sample]
+                    ind_len = arc_length(v[:ind+1])                    
+                
+                    # if curve point comes next
+                    if ind_len < sample_len:
+                        vo = np.vstack((vo, v[ind]))
+                        ind+=1
+
+                    # if sample point comes next
+                    elif ind_len > sample_len:
+                
+                        ind_len_prev = arc_length(v[:ind])                    
+                        # time t (within 0 and 1)
+                        t = (sample_len-ind_len_prev)/(ind_len-ind_len_prev)
+                        # end-points
+                        p0, p1 = v[ind-1], v[ind]
+
+                        p = lerp_func(p0, p1, t)
+
+                        vo = np.vstack((vo, p))
+
+                        sample+=1
+
+                    # if both come next
+                    else:
+                        vo = np.vstack((vo, v[ind]))
+                        ind+=1
+                        sample+=1
+
+                    # if only curve points left (no sample left)
+                    if sample>=add_N-1: 
+                        if ind>=len(v)-1: sampling=False # end loop
+
+                        vo = np.vstack((vo, v[ind]))
+                        ind+=1
+                return vo
+        else: raise Exception('Please enter a valid interpolation method: linear, etc.')
+    else: raise Exception('Please enter a valid spread method: uniform, etc.')
+
+
 '''
 Returns parametric function constructed by exponential Fourier Series of 
 input vertices (vi, Nx2 array). Parametric function is evaluated over t (N array), 
@@ -1472,19 +1557,16 @@ Let S1 be an Nx2 array at t=0 and S2 be an Mx2 array t=1
 Then output Si (Px2) is an interpolated array at some t in between,
 where P is the rounded interpolation of N and M at t.
 '''
-
+'''
+This needs optimization!!! (too slow)
+'''
 def segmentsInterpolate(S1, S2, t, integers=True):
-    # print('Printing S1')
-    # print(S1)
-    # print('Printing S2')
-    # print(S2)
-
+        
     assert is_Nx2_array(S1) and is_Nx2_array(S2)
-    assert t>=0 and t<=1
+    assert (math.isclose(t, 0, rel_tol=0, abs_tol=1e-9) or t>0) and (math.isclose(t, 1, rel_tol=0, abs_tol=1e-9) or t<1)
 
+    
     def pos_inds(column):
-        # print(column)
-        # print(len(column))
         return np.array([[i, i/(len(column)-1)] for i in range(len(column))])
 
     def initialize_Si(n1, n2, t):
@@ -1514,8 +1596,7 @@ def segmentsInterpolate(S1, S2, t, integers=True):
     n2 = len(S2[:, 0])
 
     if n1==1:
-        if n2==1:
-            Si = array_lerp_func(S1, S2, t)
+        if n2==1: Si = S1 + (S2-S1)*t
         else:
             Si = initialize_Si(n1, n2, t)
 
@@ -2287,7 +2368,7 @@ def contours_to_shapes(*conts):
                 shapes[str(ind_2)].append(cont_1)
             else: shapes[str(ind_2)] = [cont_2, cont_1]
             nested_conts[str(ind_1)] = cont_1
-        elif polygons_intersect_2(cont_1, cont_2): raise Exception('No two contours must intersect.')
+        # elif polygons_intersect_2(cont_1, cont_2): raise Exception('No two contours must intersect.')
         else: pass
 
     ''' collecting remaining shapes; lone contours'''
@@ -2469,3 +2550,19 @@ def wind(ring, vs):
     
     #Return new ring
     return np.array(ring)
+
+
+
+
+if __name__ == "__main__":
+
+
+    x = np.linspace(1, 10, 10)
+    y = x+2
+
+    v = np.vstack((x, y)).T
+
+    print(v)
+    print(v.shape)
+
+    print(arc_length(v[:2]))

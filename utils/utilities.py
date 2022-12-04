@@ -8,7 +8,9 @@ import time
 import secrets
 import string
 import hashlib
+import csv
 
+from itertools import permutations
 from datetime import datetime
 from typing import Type
 
@@ -93,7 +95,6 @@ Exception Handling
 # def assert_items_instance(items, instance, cur_items=None):
 #     if cur_items!=None: 
 #     for item in items
-
 
 
 '''
@@ -1209,4 +1210,408 @@ class attributes to lists
 '''
 def attrs_to_list(obj):
     return list(obj.__dict__.values())
+
+
+
+'''
+**************************************************************
+
+Hyperract Constructs: N-Dimensional Array Construct(s) (i.e. vector 
+    (1-D), matrix (2-D), cube (3-D), tesseract (4-D), etc...) 
+
+**************************************************************
+'''
+
+
+'''
+
+Hyperract Input-Checks (Primarily used for module hyperract.py)
+
+'''
+
+
+
+def is_array(arr):
+    try: len(arr)
+    except: return False
+    else: return True
+
+
+def is_array_nums(arr):
+    try: 
+        if len(arr)==0: raise ValueError('"arr" is empty.')
+        else:
+            for el in arr:
+                if not isinstance(el,tuple(num_types)): return False
+            return True
+    except: raise TypeError('"arr" must be an array; must possess "len()".')
+
+
+
+def is_array_arrays(arr):
+    try: 
+        len(arr)
+        for el in arr:
+            try: len(el)
+            except: return False
+        return True
+    except: raise TypeError('"arr" must be an array; possess "len()".')    
+
+
+
+
+def is_hyperray(H):
+    try:
+        if is_array_nums(H): return True
+        elif is_array_arrays(H): 
+            for h in H:
+                if not is_hyperray(h): return False
+            return True
+        return False
+    except: return False
+
+def are_hyperrays(*H):
+    for h in H:
+        if not is_hyperray(h): return False
+    return True
+
+
+# By default, can only detect hyperracts with a maximum dimension of 100.
+def is_hyperract(H,max_dim=None):
+    def cmp_gen(dim):
+        def wrap(h,H):
+            if dim == 2: return len(h)==len(H[0])
+            else:
+                cmp_in = len(h)==len(H[0])
+                for _ in range(dim-2):
+                    h = h[0]
+                    H = H[0]
+                    cmp_in = (cmp_in and (len(h)==len(H[0])))
+                return cmp_in
+        return wrap
+
+    def hyper_dec(orig,cmp_in):
+        def wrap(H):
+            if is_array(H):
+                if all([orig(h) for h in H]):
+                    if all([cmp_in(h,H) for h in H]): return True
+                    else: return False
+                else: return False
+            else: return False
+        return wrap
+
+    def hyper(H):
+        if is_array(H):
+            if all([(isinstance(h,tuple(num_types)) or h==None) for h in H]): return True
+            else: return False
+        else: return False
+
+    dim = 1
+    tmp = hyper(H)
+
+    if max_dim==None: mx=100
+    elif isinstance(max_dim, tuple(int_types)) and max_dim>0: mx = max_dim
+    else: raise ValueError('"max_dim", if entered, must be a positive integer')
+
+    while (tmp == False) and (dim <= mx):
+        dim += 1
+        hyper = hyper_dec(hyper,cmp_gen(dim))
+        tmp = hyper(H)
+
+    return tmp
+
+def are_hyperracts(*H):
+    for h in H:
+        if not is_hyperract(h): return False
+    return True
+
+
+
+def hyperract_size(H):
+    if is_hyperract(H):
+        size = []
+        tmp = True
+        while tmp:
+            try:
+                size.append(len(H))
+                H = H[0]
+            except: tmp = False
+        return size
+    else: raise TypeError('H must be a hyperract.')
+
+
+
+
+
+'''
+    Below are relevant input checks (only ever used for
+    this module.)
+'''
+
+
+
+
+
+
+
+
+'''
+Notice: Need to look for new error handling methods. Current methods have a lot of
+        redundancies.
+
+Notice: 'main' hyper_transpose() (for all n dimensions) producing the correct tranposed hyperract on all 
+        permutations as of 5/11/2021. Condensed hyper_transpose() expanded for first six dimensions archived
+        5/11/2021. 
+'''
+
+
+def transpose(M):
+    if (is_hyperract(M)==True) and (len(hyperract_size(M))==2):
+        return [[M[j][i] for j in range(len(M))] for i in range(len(M[0]))]
+    else:
+        # Raise Error Later.
+        print('Invalid Input. M must be a matrix.')
+
+
+
+def hyper_transpose(H,perm):
+    # Needs input check for permutations
+    def permute(H,perm,dim,*inds):
+        vec0 = [[dim-s-1,inds[s]] for s in range(dim)]
+        vecP = list(list(permutations(vec0))[perm])
+        permN = [vec0[vecP.index(vec0[s])][1] for s in range(dim)]
+        for i in range(dim): H = H[permN[i]]
+        return H
+
+    def transpose_loop(h,prm,loop,inds,dm,dm_szs):
+        if loop==dm-1: 
+            return [permute(h,prm,dm,*[*inds,ind]) for ind in range(dm_szs[loop])]
+        else: 
+            return [transpose_loop(h,prm,loop+1,[*inds,ind],dm,dm_szs) for ind in range(dm_szs[loop])]
+
+    if is_hyperract(H):
+        dim = len(hyperract_size(H))
+        dim_sizes = [len(H)]
+        Htmp = H 
+        for i in range(dim-1): 
+            Htmp = Htmp[0]
+            dim_sizes.append(len(Htmp))
+        dim_sizes = list(list(permutations(dim_sizes))[perm])
+        del Htmp
+
+        return transpose_loop(H,perm,0,[],dim,dim_sizes)
+    else:
+        raise TypeError('H must be a hyperract.')
+
+
+
+
+'''
+Notice: Need to look for new error handling methods. Current methods have a lot of
+        redundancies and hidden uncertainties.
+
+Notice: 'current' hyper_statisize() applies to all hyperracts with dimensions of 3 or greater. Condensed version
+        valid for up to 6 dimensions archived 5/10/2021
+'''
+
+
+
+
+stat_funcs = {
+    None: np.mean,
+    'avg': np.mean,
+    'std': np.std,
+    'sum': np.sum,
+    'max': np.max,
+    'min': np.min
+}
+
+
+
+def statisize(M,func=None):
+    if func in stat_funcs:
+        if is_hyperract(M) and (len(hyperract_size(M)) == 2): 
+            return [stat_funcs[func](col) for col in transpose(M)]
+        else: raise TypeError('M must be a matrix.')
+    else: raise ValueError('"func" must be from "stat_funcs".')
+
+
+def hyper_statisize(H,depth,func=None):
+
+    def statisize_dec(orig,dim):
+        def wrap(H,depth,func):
+            if depth == dim-1:
+                for i in range(dim-2): H = concatenate(*H)
+                return statisize(H,func)
+            else: return [orig(h,depth,func) for h in H]
+        return wrap
+
+    def statisize_loop(H,depth,func): return statisize(H,func)
+
+    try:
+        dim = len(hyperract_size(H))
+        if dim>=3 and isinstance(depth,tuple(int_types)) and depth>=0 and depth<dim:
+            if depth==0: return H
+            else:
+                for i in range(dim-2): statisize_loop = statisize_dec(statisize_loop,3+i)
+                return statisize_loop(H,depth,func)
+        else: raise ValueError('H must have 2 or more dimensions and "depth" must be a positive integer less than the number of dimensions.')
+    except TypeError: raise TypeError('H must be a hyperract.')
+
+
+
+
+
+
+'''
+    Below is the hyperract class itself and its associated
+    configuration inputs.
+
+'''
+
+
+def pars_setter(func,*pars):
+    def wrap():
+        try: return func(*pars)
+        except:
+            # This may compete with the functions in-built error-handling methods, more on this...
+            raise ValueError('Invalid number of pars or invalid par types.')
+    return wrap
+
+
+
+pop_funcs = {
+    None: np.mean,
+    'rrand': np.mean,
+    'std': np.std,
+    'sum': np.sum,
+    'max': np.max,
+    'min': np.min,
+    'rrand':rrand,
+    'urrand':pars_setter(rrand,0,10)
+}
+
+
+
+class hyperract():
+        
+    def level_loop(self,method=None):
+        def wrap(lvl,vals):
+            if lvl==len(vals)-1:
+                # list of None currently recognized as hyperract, but more on what to do with this later...
+                if method==None: return [None for ind in range(len(vals[lvl]))]
+                else:
+                    try: return [method() for ind in range(len(vals[lvl]))]
+                    except:
+                        # Later restrict functions to only be from pop_funcs dictionary, more on this...
+                        raise NameError('Invalid function input. Must be from "pop_funcs" dictionary.')
+            else: return [wrap(lvl+1,vals) for ind in range(len(vals[lvl]))]
+        return wrap
+
+
+    # if type is non-numerical, meaning it can hold strings, then disable all statisize methods (i.e. mean, std, etc..), more on this...
+    def __init__(self,keys,type=None):
+        
+        if isinstance(keys,dict):
+            if all([isinstance(val,list) for val in keys.values()]):
+                self.keys = keys
+                self.vals = list(keys.values())
+                self.hyperract = self.level_loop()(0,self.vals)
+            else: raise ValueError('Dictionary must contain lists as values.')
+        else: raise TypeError('Input must be a dictionary.') 
+
+    def populate(self,method):
+        self.hyperract = self.level_loop(method=method)(0,self.vals)
+
+
+    # plan to make this method more intuitive (i.e. inputting the new desired sequence instead of the permutation number itself
+    # which is not intuitve...)
+    def transpose(self,perm):
+        try:
+            self.hyperract = hyper_transpose(self.hyperract,perm)
+        except:
+            raise ValueError('Please enter a valid permutation.')
+
+
+'''
+**************************************************************
+
+CSV-parsers
+
+**************************************************************
+'''
+
+
+
+# Needs Input Check
+def str_to_flt_list(arr):
+    return [float(el) for el in arr]
+
+# Needs Input Check
+def flt_to_int_list(arr):
+    return [int(el) for el in arr]
+
+# Needs Input Check
+def row_to_csv(row,file,new=False):
+    if new: w = 'w' 
+    else: w = 'a'
+    # Needs handling for list of strings
+    with open(file,w,newline='') as f: csv.writer(f).writerow(row)
+
+# Needs Input Check
+def csv_to_list(file):
+    with open(file) as f: return list(csv.reader(f, delimiter=','))
+
+
+
+
+def hyper_to_csv(H,file):
+    def write_loop(H,lvl):
+        if lvl==1:
+            row_to_csv(H,file)
+        else:
+            for h in H: write_loop(h,lvl-1)
+    try:
+        szs = hyperract_size(H)
+        row_to_csv(['Hyperract Tag'],file,new=True)
+        row_to_csv(szs,file)
+        write_loop(H,len(szs))
+    except TypeError:
+        raise TypeError('H must be a hyperract')
+
+
+
+
+
+def csv_to_hyper(file):
+
+    def indexer(inds,szs):
+        sz = 1
+        idx = 0
+        n = len(szs)-2
+        for i in range(n+1):
+            idx += sz*inds[i]
+            if i<=n: sz *= szs[n-i]
+        return idx
+
+    def extract_loop(arr,inds,lvl,szs):
+        if lvl==len(szs)-2:
+            return [arr[indexer([ind,*inds],szs)] for ind in range(szs[lvl])]
+        else:
+            return [extract_loop(arr,[ind,*inds],lvl+1,szs) for ind in range(szs[lvl])]
+
+    arr = csv_to_list(file)
+    if arr[0] == ['Hyperract Tag']:
+        try: 
+            arr.pop(0)
+            arr = [str_to_flt_list(row) for row in arr]
+            szs = flt_to_int_list(arr[0])
+            arr.pop(0)
+            return extract_loop(arr,[],0,szs)
+        except:
+            raise TypeError('csv file has tag but does not contain a hyperract.')
+    else:
+        raise TypeError('csv file must have "Hyperract Tag" on first row.')
+
+
 
