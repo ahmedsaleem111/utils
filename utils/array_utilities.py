@@ -404,6 +404,15 @@ shearY_3x3 = lambda k: np.array([
     [k, 1, 0],
     [0, 0, 1]
 ]).astype('float64')
+shear_2x2 = lambda kx, ky: np.array([
+    [1, kx],
+    [ky, 1]
+]).astype('float64')
+shear_3x3 = lambda kx, ky: np.array([
+    [1, kx, 0],
+    [ky, 1, 0],
+    [0, 0, 1]
+]).astype('float64')
 # 2 x 2 (then 3 x 3), scale x and y (transpose is same)
 scale_2x2 = lambda sx, sy: np.array([
     [sx, 0],
@@ -425,6 +434,17 @@ scale_3x3_p = lambda sx, sy, px, py: matmuls(
 )
 
 
+''' let v be Nx2 array '''
+''' let mats be 3x3 matrices '''
+def transform2D_3x3(*mats, v=np.array([[1, 1]])):
+    M = list(mats)
+    M.reverse()
+
+    v = Nx2_to_Nx3(v)
+    for mat in M: v = np.matmul(mat, v.T).T
+    return Nx3_to_Nx2(v)
+
+
 ''' Will perform recursive matrix multiplication using numpy matmul '''
 def matmuls(*M):
     M = list(M)
@@ -434,6 +454,65 @@ def matmuls(*M):
     for Mi in M[1:]: matmuls = np.matmul(Mi, matmuls)
 
     return matmuls
+
+
+''' will return limits-format [x1, x2, y1, y2] of box based on its placement on screen with (w, h) '''
+def getLimitsByPlacement(w=1920, h=1080, sx=1, sy=1, placement='center'):
+    if placement=='center':
+        cx, cy = w/2, h/2
+        dx, dy = (w/2)*sx, (h/2)*sy
+        x1, x2, y1, y2 = cx-dx, cx+dx, cy-dy, cy+dy
+
+    return [x1, x2, y1, y2]
+        
+
+''' will return base-point-delta-format [bx, by, wo, ho] of box based on its placement on screen with (w, h) '''
+'''
+Various ways to go about this... there's two parts:
+
+Part 1: placement
+- center
+- right, left, bottom, top
+- top-right, top-left, bottom-right, bottom-left
+
+Part 2: dimension-method
+- by scale (sx, sy)
+- by length (lx, ly)
+- ...
+
+
+'''
+
+def getBasePointDeltaByPlacementAndScale(w=1920, h=1080, sx=1, sy=1, placement='center'):
+    if placement=='center':
+        cx, cy = w/2, h/2
+        dx, dy = (w/2)*sx, (h/2)*sy
+        bx, by, wo, ho = cx-dx, cy-dy, 2*dx, 2*dy
+
+    return [bx, by, wo, ho]
+        
+def getBasePointDeltaByPlacementAndLength(w=1920, h=1080, lx=100, ly=100, placement='center'):
+    if placement=='center':
+        cx, cy = w/2, h/2
+        bx, by, wo, ho = cx-(lx/2), cy-(ly/2), lx, ly
+
+    return [bx, by, wo, ho]
+                
+
+
+''' will convert limits format [x1, x2], [y1, y2] to base-point-delta format [bx, by], [w, h] '''
+def limitsToBasePointDelta(x1, x2, y1, y2):
+    bx, by = x1, y1
+    w, h = x2-x1, y2-y1
+
+    return [bx, by, w, h]
+
+''' will convert base-point-delta format [bx, by], [w, h] to limits format [x1, x2], [y1, y2] '''
+def basePointDeltaToLimits(bx, by, w, h):
+    x1, y1 = bx, by
+    x2, y2 = x1+w, y1+h
+
+    return [x1, x2, y1, y2]
 
 
 
