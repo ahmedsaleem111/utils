@@ -130,6 +130,14 @@ def Nx3_to_Nx2(v):
     return v[:,0:2]
 
 
+''' Expand size N to 1xN '''
+N_to_1xN = lambda v: np.expand_dims(v, axis=0)
+
+
+''' Expand size N to Nx1 '''
+N_to_Nx1 = lambda v: np.expand_dims(v, axis=1)
+
+
 ''' will stack variable Nx2 arrays together'''
 def vstack_Nx2_arrays(*v, chk=True):
     if chk:
@@ -2629,6 +2637,40 @@ def wind(ring, vs):
     
     #Return new ring
     return np.array(ring)
+
+
+
+'''
+Random Generators
+'''
+def randomUniformArray(*shape, start=0, end=1):
+    '''
+    Will generate an array of any shape with
+    random values from a uniform distribution [start, end)
+
+    All "shape" values must be positive integers. 
+    "start" and "end" must be real numbers.
+    '''
+    return rangeform(np.random.rand(*shape), 0, 1, start, end)
+
+
+def randomUniformIntArray(*shape, start=0, end=1):
+    '''
+    Will generate an array of any shape with
+    random integers from a uniform distribution [start, end)
+
+    All "shape" values must be positive integers. 
+    "start" and "end" must be integers.
+    '''
+    return np.random.randint(start, end, size=shape)
+
+
+
+def rectArray(x1, y1, x2, y2):
+    return np.array([
+        [x1, y1], [x2, y1],
+        [x2, y2], [x1, y2]
+    ])
 
 
 
