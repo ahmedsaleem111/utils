@@ -2673,6 +2673,8 @@ def rectArray(x1, y1, x2, y2):
     ])
 
 
+def triArray(x1, y1, x2, y2, x3, y3):
+    return np.array([[x1, y1], [x2, y2], [x3, y3]])
 
 
 if __name__ == "__main__":
