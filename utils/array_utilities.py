@@ -236,6 +236,7 @@ def cyclic_slice(v, a, b):
     else: raise TypeError('v must be a list or numpy array.')
 
 
+# may depracate this...
 ''' let v be a list or numpy array, and shift be an integer '''
 ''' will shift the elements of v in reference to a new start index
     (specified relative to the previous '''
@@ -253,6 +254,10 @@ def cyclic_shift(v, shift):
         v.rotate(shift)
         return list(v)
     else: raise TypeError('v must be a list or numpy array.')
+
+
+def cyclicShiftPoints(v, i=0):
+    return np.array([*v[i:], *v[:i]])
 
 
 ''' radians to degrees '''
@@ -2675,6 +2680,13 @@ def rectArray(x1, y1, x2, y2):
 
 def triArray(x1, y1, x2, y2, x3, y3):
     return np.array([[x1, y1], [x2, y2], [x3, y3]])
+
+
+def funcXtoY(func, x1, x2, N):
+    x = np.linspace(x1, x2, N)
+    return np.vstack((x, func(x))).T
+
+
 
 
 if __name__ == "__main__":
