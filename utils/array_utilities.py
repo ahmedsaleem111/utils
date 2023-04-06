@@ -367,16 +367,22 @@ rotT_3x3 = lambda ang: np.array([
     [0, 0, 1]
 ]).astype('float64')
 # 3 x 3, about p, ang is rads
-rotp_3x3 = lambda ang, px, py: np.array([
-    [np.cos(ang), -np.sin(ang), -px*np.cos(ang)+py*np.sin(ang)+px],
-    [np.sin(ang), np.cos(ang), -px*np.sin(ang)-py*np.cos(ang)+py],
-    [0, 0, 1]
-]).astype('float64')
-rotpT_3x3 = lambda ang, px, py: np.array([
-    [np.cos(ang), np.sin(ang), 0],
-    [-np.sin(ang), np.cos(ang), 0],
-    [-px*np.cos(ang)+py*np.sin(ang)+px, -px*np.sin(ang)-py*np.cos(ang)+py, 1]
-]).astype('float64')
+# rotp_3x3 = lambda ang, px, py: np.array([
+#     [np.cos(ang), -np.sin(ang), -px*np.cos(ang)+py*np.sin(ang)+px],
+#     [np.sin(ang), np.cos(ang), -px*np.sin(ang)-py*np.cos(ang)+py],
+#     [0, 0, 1]
+# ]).astype('float64')
+
+
+rotp_3x3 = lambda ang, px, py: np.matmul(trans_3x3(px, py), np.matmul(rot_3x3(ang), trans_3x3(-px, -py)))
+rotpT_3x3 = lambda ang, px, py: np.matmul(trans_3x3(px, py), np.matmul(rot_3x3(ang), trans_3x3(-px, -py))).T
+
+# rotpT_3x3 = lambda ang, px, py: np.array([
+#     [np.cos(ang), np.sin(ang), 0],
+#     [-np.sin(ang), np.cos(ang), 0],
+#     [-px*np.cos(ang)+py*np.sin(ang)+px, -px*np.sin(ang)-py*np.cos(ang)+py, 1]
+# ]).astype('float64')
+
 # 3 x 3, translate ds 
 trans_3x3 = lambda dx, dy: np.array([
     [1, 0, dx],
@@ -445,6 +451,11 @@ scale_3x3_p = lambda sx, sy, px, py: matmuls(
     scale_3x3(sx, sy),
     trans_3x3(-px, -py)
 )
+
+scalep_3x3 = lambda sx, sy, px, py: np.matmul(trans_3x3(px, py), np.matmul(scale_3x3(sx, sy), trans_3x3(-px, -py)))
+scalepT_3x3 = lambda sx, sy, px, py: np.matmul(trans_3x3(px, py), np.matmul(scale_3x3(sx, sy), trans_3x3(-px, -py))).T
+
+
 
 
 ''' let v be Nx2 array '''
@@ -908,7 +919,7 @@ def arraysBetweenAlmost(r, a, b, startClose=True, endClose=True, rtol=0, atol=1e
 
 
 # finds scale over specified duration based on scale over reference duration
-def scale_per(r, tr, ts):
+def scalePer(r, tr, ts):
     return np.exp(ts*np.log(r)/tr)
 
 # transform array values relative to start range to being relative to an end range
@@ -1197,6 +1208,29 @@ Parametrics...
 
 
 ********************************************************************'''
+
+
+
+
+def linearInterpolate2D(p0, p1, t):
+    x = p0[0]+(p1[0]-p0[0])*t
+    y = p0[1]+(p1[1]-p0[1])*t
+    if isinstance(t, np.ndarray): return np.vstack((x,y)).T
+    else: return np.array([x, y])
+
+
+def quadraticBezier2D(p0, p1, p2, t):
+    x = ((1-t)**2)*p0[0] + 2*(1-t)*t*p1[0] + (t**2)*p2[0] 
+    y = ((1-t)**2)*p0[1] + 2*(1-t)*t*p1[1] + (t**2)*p2[1]     
+    if isinstance(t, np.ndarray): return np.vstack((x,y)).T
+    else: return np.array([x, y])
+
+
+def cubicBezier2D(p0, p1, p2, p3, t):
+    x = ((1-t)**3)*p0[0] + 3*((1-t)**2)*t*p1[0] + 3*(1-t)*(t**2)*p2[0] + (t**3)*p3[0]
+    y = ((1-t)**3)*p0[1] + 3*((1-t)**2)*t*p1[1] + 3*(1-t)*(t**2)*p2[1] + (t**3)*p3[1]
+    if isinstance(t, np.ndarray): return np.vstack((x,y)).T
+    else: return np.array([x, y])
 
 
 
@@ -2689,15 +2723,114 @@ def funcXtoY(func, x1, x2, N):
 
 
 
+def screenScaledPoint(sx, sy, w=1920, h=1080):
+    ''' will generate a point scaled (sx, sy) relative to screen dimensions'''
+    return np.array([sx*w, sy*h])
+
+
+def dynamicPoints(px=0, py=0, shifts=[]):
+    ''' 
+    (px, py) is the start point and shifts is a size-N list where
+    N is the desired number of shifts. Each element must be a size-2
+    list, tuple, or set. The interpreations are as follows:
+
+    - list    --> [x-shift, y-shift]
+    - tuple   --> (magnitude, angle)
+    - set     --> {magnitude, absolute-angle}
+
+    Difference between angle and absolute-angle is that in the
+    former case it is interpreted as being relative to the direction
+    of previous shift where in the latter case it is interpreted
+    as being being relative to the overall coordinate-space. The
+    exception here is the first shift, where the angle is always
+    interpreted as absolute.      
+    '''
+
+    prevPoint = [px, py]
+    prevAngle = None
+
+    points = [prevPoint]
+    for shift in shifts:
+        assert len(shift)==2
+
+        if isinstance(shift, list): [x_shift, y_shift] = shift
+        elif isinstance(shift, tuple):
+            if prevAngle is None: [x_shift, y_shift] = [shift[0]*np.cos(deg2rad(shift[1])), shift[0]*np.sin(deg2rad(shift[1]))]
+            else: [x_shift, y_shift] = [shift[0]*np.cos(deg2rad(shift[1] + prevAngle)), shift[0]*np.sin(deg2rad(shift[1] + prevAngle))]
+        elif isinstance(shift, set): [x_shift, y_shift] =  [shift[0]*np.cos(deg2rad(shift[1])), shift[0]*np.sin(deg2rad(shift[1]))]
+        else: raise Exception('see docstring.')
+
+        prevPoint = [prevPoint[0] + x_shift, prevPoint[1] + y_shift]
+        prevAngle = rad2deg(np.arctan2(y_shift, x_shift)) # choosing correct quadrant        
+
+        points.append(prevPoint)
+
+    return np.array(points)
+
+
+
+# later... INCOMPLETE
+def dynamicPoints2(px=0, py=0, shifts=[]):
+    ''' 
+    (px, py) is the start point and shifts is a size-N list where
+    N is the desired number of shifts. Each element must be a string. 
+    The interpreations are as follows:
+
+    - 'x,y'    -->  shifts x, shift y 
+    - 's>'     --> shift s right
+    - 's^'     --> shift s up
+    - 's<'     --> shift s left
+    - 'sv'     --> shift s down
+    - 'r@t'    --> shift magnitude r at angle t
+    - 'r@@t'   --> shift magnitude r at absolute-angle t
+
+    Difference between angle and absolute-angle is that in the
+    former case it is interpreted as being relative to the direction
+    of previous shift where in the latter case it is interpreted
+    as being being relative to the overall coordinate-space. The
+    exception here is the first shift, where the angle is always
+    interpreted as absolute.      
+    '''
+
+    prevPoint = [px, py]
+    prevAngle = None
+
+    points = [prevPoint]
+    for shift in shifts:
+        assert isinstance(shift, str)
+
+        if isinstance(shift, list): [x_shift, y_shift] = shift
+        elif isinstance(shift, tuple):
+            if prevAngle is None: [x_shift, y_shift] = [shift[0]*np.cos(deg2rad(shift[1])), shift[0]*np.sin(deg2rad(shift[1]))]
+            else: [x_shift, y_shift] = [shift[0]*np.cos(deg2rad(shift[1] + prevAngle)), shift[0]*np.sin(deg2rad(shift[1] + prevAngle))]
+        elif isinstance(shift, set): [x_shift, y_shift] =  [shift[0]*np.cos(deg2rad(shift[1])), shift[0]*np.sin(deg2rad(shift[1]))]
+        else: raise Exception('see docstring.')
+
+        prevPoint = [prevPoint[0] + x_shift, prevPoint[1] + y_shift]
+        prevAngle = rad2deg(np.arctan2(y_shift, x_shift)) # choosing correct quadrant        
+        print(prevAngle)
+
+        points.append(prevPoint)
+
+    return np.array(points)
+
+
+
+
+
 if __name__ == "__main__":
 
 
-    x = np.linspace(1, 10, 10)
-    y = x+2
+    l = [
+        'c',   1,   1,
+        'p',   2,   2,
+        'c',  -1,   2,
+        'pa',  3,   0,
+        'c',   0,   4,
+        'p',  -2,  -3
+    ]
 
-    v = np.vstack((x, y)).T
 
-    print(v)
-    print(v.shape)
-
-    print(arc_length(v[:2]))
+    print(l[0::1])
+    print(l[0::2])
+    print(l[0::3])        
