@@ -2817,6 +2817,36 @@ def dynamicPoints2(px=0, py=0, shifts=[]):
 
 
 
+def transform2D(pan, orient, zoom, window):
+    ''' 
+    Will generate sequence of 3x3 matrices to transform
+    2D coordinates (Nx2 array) by given pan (point), orient (angle 
+    in degrees), zoom (scalar), and window (contour; Nx2 array)  
+
+    Return order A, B, C, D... will be calculated as D*C*B*A*v  
+    '''
+
+    # Constructing bounding square from bounding rectangle
+    bx, by = min(window[:,0]), min(window[:,1])
+    tx, ty = max(window[:,0]), max(window[:,1])
+    cx, cy = (bx+tx)/2, (by+ty)/2
+
+    s = np.sqrt((tx-bx)*(ty-by)) # sides of bounding square
+
+    return [
+        trans_3x3(-1*pan[0], -1*pan[1]),  # Step 1: Inverse Pan Image to Origin
+        rot_3x3(-1*deg2rad(orient)),      # Step 1: Inverse Pan Image to Origin
+        scale_3x3(1/zoom, 1/zoom),        # Step 3: Inverse Zoom Image at Origin
+        scale_3x3(s/2, s/2),              # Step 4: Window Scale Image at Origin
+        trans_3x3(cx, cy)                 # Step 5: Window Shift Image at Origin
+    ]
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
 
