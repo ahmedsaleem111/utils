@@ -2711,6 +2711,15 @@ def rectArray(x1, y1, x2, y2):
         [x2, y2], [x1, y2]
     ])
 
+def screenScaledRectArray(w=1920, h=1080, s=1):
+    assert s>=0 and s<=1
+
+    wr = s*w
+    hr = s*h
+    xr = (w-wr)/2
+    yr = (h-hr)/2
+    return rectArray(xr, yr, xr+wr, yr+hr)
+
 
 def triArray(x1, y1, x2, y2, x3, y3):
     return np.array([[x1, y1], [x2, y2], [x3, y3]])
@@ -2816,7 +2825,7 @@ def dynamicPoints2(px=0, py=0, shifts=[]):
 
 
 
-
+# change interpretation of zoom... so it is logarithmic?? i.e. 2 means 2x and 10 means 10x? more on this...
 def transform2D(pan, orient, zoom, window):
     ''' 
     Will generate sequence of 3x3 matrices to transform
