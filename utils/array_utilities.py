@@ -140,9 +140,10 @@ N_to_Nx1 = lambda v: np.expand_dims(v, axis=1)
 
 ''' will stack variable Nx2 arrays together'''
 def vstack_Nx2_arrays(*v, chk=True):
-    if chk:
-        for p in v: 
-            if not is_Nx2_array(p): raise TypeError('all v must by variable N x 2 arrays')
+    # print(v)
+    # if chk:
+    #     for p in v: 
+    #         if not is_Nx2_array(p): raise TypeError('all v must by variable N x 2 arrays')
 
     v_stk = v[0]
     for p in v[1:]: v_stk = np.vstack((v_stk, p))
@@ -317,6 +318,11 @@ def magnitude(v):
     if is_2_array(v): return np.sqrt(v[0]**2 + v[1]**2)
     elif is_Nx2_array(v): return np.sqrt(v[:,0]**2 + v[:,1]**2)
     else: raise TypeError('v must be N=2 or Nx2 arrays.')
+
+
+def magnitudeAngleToXY(mag, ang, degrees=True):
+    if degrees: ang = deg2rad(ang)
+    return [mag*np.cos(ang), mag*np.sin(ang)]
 
 
 # let v be a Nx2 array (N=M), N>=2
@@ -2851,6 +2857,46 @@ def transform2D(pan, orient, zoom, window):
     ]
 
 
+
+def affine(
+    v,
+    basePoint=None, # override centroid
+    shift=[0, 0],
+    scale=[1, 1],
+    rotate=0, # in degrees
+    place=None, # will override "shift" if specified
+    # shift can even be a path function; must have a domain of [0, 1] (dur normalized) and each
+    # output at a given time will be the shift at that time t
+):
+        
+    c = centroid(v)
+
+    if basePoint is None: pivot = c
+    else: pivot = np.array(basePoint)
+
+    if place is None:
+        if isinstance(scale, list): shift_t = np.array(shift)
+        elif isinstance(scale, tuple): # mag, ang in degrees
+            # THIS LINE OF CODE NOT WORKING... WHY???
+            shift_t = np.array([shift[0]*np.cos(deg2rad(shift[1])), shift[0]*np.sin(deg2rad(shift[1]))])
+        else: raise Exception('not valid "shift" form')
+    else: shift_t = np.array(place)
+        
+    [sx, sy] = scale
+
+
+    rot_t = deg2rad(rotate)
+
+    # derived from property (A*B)T = (B)T*(A)T
+    v_ = Nx2_to_Nx3(v) # Nx3
+    v_ = np.matmul(v_, trans_3x3(-pivot[0], -pivot[1]).T) # (3x3 * 3xN).T --> Nx3
+    v_ = np.matmul(v_, scale_3x3(sx, sy).T) # (3x3 * 3xN).T --> Nx3
+    v_ = np.matmul(v_, rot_3x3(rot_t).T) # (3x3 * 3xN).T --> Nx3
+    if place is None:  v_ = np.matmul(v_, trans_3x3(pivot[0], pivot[1]).T) # (3x3 * 3xN).T --> Nx3
+    v_ = np.matmul(v_, trans_3x3(*shift_t).T) # (3x3 * 3xN).T --> Nx3
+    v_ = Nx3_to_Nx2(v_) # Nx2
+
+    return v_
 
 
 
