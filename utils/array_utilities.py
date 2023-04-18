@@ -14,6 +14,7 @@ import shapely.geometry
 Number Constants
 
 '''
+rel_tol, abs_tol = 0, 1e-9
 
 int_types = [int,np.int_,np.intc,np.intp,np.int8,np.int16,np.int32,np.int64]
 float_types = [float,np.float_,np.float16,np.float32,np.float64]
@@ -139,7 +140,7 @@ N_to_Nx1 = lambda v: np.expand_dims(v, axis=1)
 
 
 ''' will stack variable Nx2 arrays together'''
-def vstack_Nx2_arrays(*v, chk=True):
+def vstack_Nx2_arrays(*v):
     # print(v)
     # if chk:
     #     for p in v: 
@@ -462,17 +463,6 @@ scalep_3x3 = lambda sx, sy, px, py: np.matmul(trans_3x3(px, py), np.matmul(scale
 scalepT_3x3 = lambda sx, sy, px, py: np.matmul(trans_3x3(px, py), np.matmul(scale_3x3(sx, sy), trans_3x3(-px, -py))).T
 
 
-
-
-''' let v be Nx2 array '''
-''' let mats be 3x3 matrices '''
-def transform2D_3x3(*mats, v=np.array([[1, 1]])):
-    M = list(mats)
-    M.reverse()
-
-    v = Nx2_to_Nx3(v)
-    for mat in M: v = np.matmul(mat, v.T).T
-    return Nx3_to_Nx2(v)
 
 
 ''' Will perform recursive matrix multiplication using numpy matmul '''
@@ -986,25 +976,25 @@ def nearest(v, val):
 
 
 # numpy Nx2 array v to complex N array
-def points_to_complex(v):
+def pointsToComplex(v):
     return v[:,0] + v[:,1]*1j
 
 # complex N array c to points Nx2 array
-def complex_to_points(c):
+def complexToPoints(c):
     return np.vstack((c.real,c.imag)).T
 
 # numpy Nx2 arrays arrs to complex N arrays c_arrs
-def points_to_complex_arrs(*arrs):
+def pointsToComplex_arrs(*arrs):
     c_arrs=[]
     for v in arrs: 
-        c_arrs.append(points_to_complex(v))
+        c_arrs.append(pointsToComplex(v))
     return c_arrs
 
 # complex N arrays c_arrs to points Nx2 arrays arrs
-def complex_to_points_arrs(*c_arrs):
+def complexToPoints_arrs(*c_arrs):
     arrs=[]
     for c in c_arrs: 
-        arrs.append(complex_to_points(c))
+        arrs.append(complexToPoints(c))
     return arrs
 
 # let pths be a list of N x 2 (N variable) arrays.
@@ -1217,6 +1207,9 @@ Parametrics...
 
 
 
+def linearInterpolateScalar(s0, s1, t):
+    return (s1-s0)*t + s0
+
 
 def linearInterpolate2D(p0, p1, t):
     x = p0[0]+(p1[0]-p0[0])*t
@@ -1225,11 +1218,21 @@ def linearInterpolate2D(p0, p1, t):
     else: return np.array([x, y])
 
 
+def linearInterpolateArray(M0, M1, t):
+    assert M0.shape == M1.shape
+
+    if isinstance(t, np.ndarray): return (M1-M0)*t + M0
+    else: return np.array([(M1-M0)*ti for ti in t]) # adding another dimension along t-axis
+
+
+
 def quadraticBezier2D(p0, p1, p2, t):
     x = ((1-t)**2)*p0[0] + 2*(1-t)*t*p1[0] + (t**2)*p2[0] 
     y = ((1-t)**2)*p0[1] + 2*(1-t)*t*p1[1] + (t**2)*p2[1]     
     if isinstance(t, np.ndarray): return np.vstack((x,y)).T
     else: return np.array([x, y])
+
+
 
 
 def cubicBezier2D(p0, p1, p2, p3, t):
@@ -1240,145 +1243,23 @@ def cubicBezier2D(p0, p1, p2, p3, t):
 
 
 
-# linear interpolate (credit to Freya Holmer from her YouTube video "The Beauty of Bezier Curves" for the name)
-# p0, p1 are endpoints (N=2 array)
-# t is interpolation position; 0 at p0 and 1 at p1 (real scalar or N array)
-def lerp_func(p0, p1, t, chk=False):
-    err_msg = 'p0 and p1 must be N=2 arrays.'
-    if chk:
-        if not is_2_array(p0): raise TypeError(err_msg)
-        if not is_2_array(p1): raise TypeError(err_msg)
-
-    if is_N_array(t):
-        x = p0[0]+(p1[0]-p0[0])*t
-        y = p0[1]+(p1[1]-p0[1])*t
-        return np.vstack((x,y)).T
-    elif isinstance(t, tuple(non_complex_types)): return p0+(p1-p0)*t
-    else: raise TypeError('t can only be a real number or an N array.')
 
 
-def lerp_wrapper(p0, p1):
-    def lerp_inside(t):
-        return lerp_func(p0, p1, t, chk=True)
-    return lerp_inside
+# for reference, more on this...
 
-
-
-
-# linear interpolate between two MxN arrays (same dimensions)
-# t is interpolation position; 0 at v0 and 1 at v1 (real scalar or N array)
-def array_lerp_func(v0, v1, t):
-    assert isinstance(v0, np.ndarray) and isinstance(v1, np.ndarray) # must be numpy array
-    shp0, shp1 = v0.shape, v1.shape
-    assert len(shp0)==2 and len(shp1)==2 # must have 2 dimensions
-    assert shp0[0]==shp1[0] and shp0[1]==shp1[1] # dimensions must be the same
-
-    if is_N_array(t): return np.array([v0+(v1-v0)*ti for ti in t]) # PxMxN array where P is length of t
-    elif isinstance(t, tuple(non_complex_types)): return v0+(v1-v0)*t # MxN
-    else: raise TypeError('t can only be a real number or an N array.')
-
-
-def array_lerp_wrapper(v0, v1):
-    def array_lerp_inside(t):
-        return array_lerp_func(v0, v1, t, chk=True)
-    return array_lerp_inside
-
-
-
-
-# linear interpolate between two scalar values s0 and s1.
-# t is interpolation position; 0 at s0 and 1 at s1 (real scalar or N array)
-def scalerp_func(s0, s1, t, chk=False):
-    err_msg = 's0 and s1 must be real numbers.'
-    if chk:
-        if not isinstance(s0, tuple(non_complex_types)): raise TypeError(err_msg)
-        if not isinstance(s1, tuple(non_complex_types)): raise TypeError(err_msg)
-
-    return s0+(s1-s0)*t # needs a check for t (can be any array of real numbers within [0, 1])
-
-
-def scalerp_lerp_wrapper(s0, s1):
-    def scalerp_lerp_inside(t):
-        return scalerp_func(s0, s1, t, chk=True)
-    return scalerp_lerp_inside
-
-
-
-
-# quadratic bezier
-# p0 and p2 be endpoints, and p1 be control point (all N=2 arrays)
-# t is interpolation position; 0 at p0 and 1 at p2 (real scalar or N array)
-def q_bezier_func(p0, p1, p2, t, chk=False):
-    err_msg = 'p0, p1 and p2 must be N=2 arrays.'
-    if chk:
-        if not is_2_array(p0): raise TypeError(err_msg)
-        if not is_2_array(p1): raise TypeError(err_msg)
-        if not is_2_array(p2): raise TypeError(err_msg)
-
-    if is_N_array(t):
-        x = ((1-t)**2)*p0[0] + 2*(1-t)*t*p1[0] + (t**2)*p2[0] 
-        y = ((1-t)**2)*p0[1] + 2*(1-t)*t*p1[1] + (t**2)*p2[1] 
-        return np.vstack((x,y)).T
-    elif isinstance(t, non_complex_types): 
-        return lerp_func(lerp_func(p0, p1, t), lerp_func(p1, p2, t), t)
-    else: raise TypeError('t can only be a real number or an N array.')
-
-
-def q_bezier_wrapper(p0, p1, p2):
-    def q_bezier_inside(t):
-        return q_bezier_func(p0, p1, p2, t, chk=True)
-    return q_bezier_inside
-
-
-
-
-
-# cubic bezier
-# p0 and p3 be endpoints, and p1 and p2 be control points (all N=2 arrays)
-# t is interpolation position; 0 at p0 and 1 at p3 (real scalar or N array)
-def c_bezier_func(p0, p1, p2, p3, t, chk=False):
-    err_msg = 'p0, p1, p2 and p3 must be N=2 arrays.'
-    if chk:
-        if not is_2_array(p0): raise TypeError(err_msg)
-        if not is_2_array(p1): raise TypeError(err_msg)
-        if not is_2_array(p2): raise TypeError(err_msg)
-        if not is_2_array(p3): raise TypeError(err_msg)
-
-    if is_N_array(t):
-        x = ((1-t)**3)*p0[0] + 3*((1-t)**2)*t*p1[0] + 3*(1-t)*(t**2)*p2[0] + (t**3)*p3[0]
-        y = ((1-t)**3)*p0[1] + 3*((1-t)**2)*t*p1[1] + 3*(1-t)*(t**2)*p2[1] + (t**3)*p3[1]
-        return np.vstack((x,y)).T
-    elif isinstance(t, non_complex_types): 
-        return lerp_func(lerp_func(lerp_func(p0, p1, t), lerp_func(p1, p2, t), t), lerp_func(lerp_func(p1, p2, t), lerp_func(p2, p3, t), t), t)
-    else: raise TypeError('t can only be a real number or an N array.')
-
-
-def c_bezier_wrapper(p0, p1, p2, p3):
-    def c_bezier_inside(t):
-        return c_bezier_func(p0, p1, p2, p3, t, chk=True)
-    return c_bezier_inside
+def cubicBezier2D_wrapper(p0, p1, p2, p3):
+    def cubicBEzier2D_inside(t):
+        return cubicBezier2D(p0, p1, p2, p3, t)
+    return cubicBEzier2D_inside
 
 
 
 
 # logistic curve with input t and parameters L (height), k (horizontal scaling), t0 (horizontal positioning)
 # t can be a scalar or a N array, will return the corresponding type
-def logistic_func(L, k, t0, t, chk=False):
-    err_msg = 'L, k, and t0 must be real numbers.'
-    if chk:
-        if not isinstance(L, tuple(non_complex_types)): raise TypeError(err_msg)
-        if not isinstance(k, tuple(non_complex_types)): raise TypeError(err_msg)
-        if not isinstance(t0, tuple(non_complex_types)): raise TypeError(err_msg)
-        if not (isinstance(t, tuple(non_complex_types)) or is_N_array(t)):
-            raise TypeError('t must only be a real numbe or an N array.')
-
+def logistic(L, k, t0, t):
     return L/(1 + np.exp(-k*(t-t0)))
 
-
-def logistic_wrapper(L, k, t0):
-    def logistic_inside(t):
-        return logistic_func(L, k, t0, t, chk=True)
-    return logistic_inside
 
 
 
@@ -1407,23 +1288,18 @@ All 4 arc functions verified on 3/12/2022; see macro "arc_tests_3_12_2022"
 # ang0 & ang are start and displacement angles (both real numbers)
 # t is interpolation position; 0 at ang0 and 1 at ang0+ang 
 # (real scalar or N array; will return N=2 or Nx2 respectively)
-def arc_func(c, r, ang0, ang, t, chk=False):
+def arc2D(c, r, ang0, ang, t):
 
-    if chk:
-        if not is_2_array(c): raise TypeError('c (center) must be a N=2 array.')
-        if not (isinstance(r, non_complex_types) and r>0): raise TypeError('r (radius) must be a positive real number.')
-        if not isinstance(ang0, non_complex_types): raise TypeError('ang0 and ang must be real numbers.')
-        if not isinstance(ang, non_complex_types): raise TypeError('ang0 and ang must be real numbers.')
 
     if is_N_array(t):
         ang1=ang0+ang
-        angt = scalerp_func(ang0, ang1, t)
+        angt = linearInterpolateScalar(ang0, ang1, t)
         x = c[0] + r*np.cos(angt)
         y = c[1] + r*np.sin(angt)
         return np.vstack((x,y)).T # return Nx2
     elif isinstance(t, non_complex_types): 
         ang1=ang0+ang
-        angt = scalerp_func(ang0, ang1, t)
+        angt = linearInterpolateScalar(ang0, ang1, t)
         x = c[0] + r*np.cos(angt)
         y = c[1] + r*np.sin(angt)
         return np.array([x, y]) # return N=2
@@ -1436,12 +1312,7 @@ def arc_func(c, r, ang0, ang, t, chk=False):
 # c and s are N=2 arrays
 # ang is a real number
 # t is real numbe or N array
-def arc_center_start_ang_func(c, s, ang, t, chk=False):
-    if chk:
-        if not (is_2_array(c) and is_2_array(s)): 
-            raise TypeError('c (center) and s (start) must be N=2 arrays.')
-        if not isinstance(ang, non_complex_types):
-            raise TypeError('ang must be a real number.')
+def arc2D_centerStartAngle(c, s, ang, t):
 
     [drx, dry] = s - c
 
@@ -1458,7 +1329,7 @@ def arc_center_start_ang_func(c, s, ang, t, chk=False):
         else: # dry==0
             raise Exception('Value is indeterminate.')
         
-    return arc_func(c, r, ang0, ang, t)
+    return arc2D(c, r, ang0, ang, t)
 
 
 
@@ -1466,12 +1337,7 @@ def arc_center_start_ang_func(c, s, ang, t, chk=False):
 # r is positive scalar
 # dir is direction (CCWS, CCWL, CWS, & CWL)
 # needs a condition for r = infinity
-def arc_start_end_rad_func(s, e, r, t, dir='CCWS', chk=False):
-    if chk:
-        if not is_2_array(s): raise TypeError('s and e must be N=2 arrays.')
-        if not is_2_array(e): raise TypeError('s and e must be N=2 arrays.')
-        if not (isinstance(r, non_complex_types) and r>0):
-            raise Exception('r must be a positive real number.')
+def arc2D_startEndRadius(s, e, r, t, dir='CCWS'):
 
     ds = e - s
     sm = ds/2
@@ -1501,19 +1367,13 @@ def arc_start_end_rad_func(s, e, r, t, dir='CCWS', chk=False):
         ang = 2*theta - 2*np.pi
     else: raise ValueError('valid dir values are "CCWS", "CCWL", "CWS", & "CWL".')
     
-    return arc_center_start_ang_func(c, s, ang, t)
+    return arc2D_centerStartAngle(c, s, ang, t)
 
 
 
 # e and s are N=2 arrays
 # ang is a real number between -2pi and 2pi
-def arc_start_end_ang_func(s, e, ang, t, chk=False):
-    err_msg='ang must be a real number in the interval (-2pi, 2pi).'
-    if chk:
-        if not is_2_array(s): raise TypeError('s and e must be N=2 arrays.')
-        if not is_2_array(e): raise TypeError('s and e must be N=2 arrays.')
-        if not isinstance(ang, non_complex_types): raise TypeError(err_msg)
-
+def arc2D_startEndAngle(s, e, ang, t):
     ds = e - s
 
     ds_u = unit(ds)
@@ -1522,7 +1382,7 @@ def arc_start_end_ang_func(s, e, ang, t, chk=False):
     sm = ds/2
     sm_mag = magnitude(sm)
 
-    if ang==0: return lerp_func(s, e, t)
+    if ang==0: return linearInterpolate2D(s, e, t)
     else:
         if ang>-2*np.pi and ang<-np.pi: # CWL
             theta = (2*np.pi - abs(ang))/2
@@ -1549,9 +1409,9 @@ def arc_start_end_ang_func(s, e, ang, t, chk=False):
             mc_mag = r*np.cos(theta)
             mc = mc_mag*mc_u       
             c = s + sm - mc  
-        else: raise TypeError(err_msg)
+        else: raise TypeError('not valid')
 
-        return arc_center_start_ang_func(c, s, ang, t)
+        return arc2D_centerStartAngle(c, s, ang, t)
 
 
 
@@ -1575,12 +1435,6 @@ Interpolations:
 Need to optimize to eliminate while loop...
 '''
 def upSampleCurve(v, N=1000, spread='uniform', interpolation='linear', closePath=False):
-    if not is_Nx2_array(v): raise TypeError('"v" must be a Nx2 array.')
-    if len(v)<2: raise ValueError('"v" must have at least 2-points for up-sampling to apply.')
-    if not isinstance(N, tuple(int_types)): raise TypeError('"N" must be an integer.')
-    if N<len(v): raise ValueError('"N" must be >= number of input points.')
-    if not isinstance(closePath, bool): raise TypeError('"closePath" must be a bool (True or False).')
-
     if closePath: v = np.vstack((v, v[0])) # first point is also final point for closed path
 
     add_N = N - len(v) # number of points to add
@@ -1588,7 +1442,7 @@ def upSampleCurve(v, N=1000, spread='uniform', interpolation='linear', closePath
         if interpolation=='linear':
             if add_N == 0: return v                     
             else:
-                arclen = arc_length(v) # arc-length of perimeter
+                arclen = arcLength2D(v) # arc-length of perimeter
 
                 arclens = np.linspace(0, 1, add_N+2)[1:add_N+1]*arclen # arc-lengths of new sub-perimeters (from first point those new points)
 
@@ -1600,7 +1454,7 @@ def upSampleCurve(v, N=1000, spread='uniform', interpolation='linear', closePath
                 while sampling:
 
                     sample_len = arclens[sample]
-                    ind_len = arc_length(v[:ind+1])                    
+                    ind_len = arcLength2D(v[:ind+1])                    
                 
                     # if curve point comes next
                     if ind_len < sample_len:
@@ -1610,13 +1464,13 @@ def upSampleCurve(v, N=1000, spread='uniform', interpolation='linear', closePath
                     # if sample point comes next
                     elif ind_len > sample_len:
                 
-                        ind_len_prev = arc_length(v[:ind])                    
+                        ind_len_prev = arcLength2D(v[:ind])                    
                         # time t (within 0 and 1)
                         t = (sample_len-ind_len_prev)/(ind_len-ind_len_prev)
                         # end-points
                         p0, p1 = v[ind-1], v[ind]
 
-                        p = lerp_func(p0, p1, t)
+                        p = linearInterpolate2D(p0, p1, t)
 
                         vo = np.vstack((vo, p))
 
@@ -1639,17 +1493,77 @@ def upSampleCurve(v, N=1000, spread='uniform', interpolation='linear', closePath
     else: raise Exception('Please enter a valid spread method: uniform, etc.')
 
 
+
+ 
+class curve2D:
+
+    def __init__(self, func):
+        ''' "func" must be a lambda function whose domain is strictly within [0, 1] 
+            and output is a 2D-point.
+        '''
+        self.func = func
+
+
+class svgPath:
+
+    def __init__(self): pass # more on this...
+
+
+
+
+# # will return Nx2 array
+# def sampleCurve2D():
+
+
+
+
+
+'''
+Approximate curve (add more vertices) by using Fourier Series.
+
+Returns exponential Fourier Series of 
+input vertices (vi, Px2 array) evaluated over t (size-N array),
+determined by number of points N. 
+producing output vertices (vo, Rx2 array)
+
+Nf is number of frequencies used for F.S.
+'''
+def FourierSeriesApproximate(vi, N=1000, Nf=10):
+
+    # make complex:
+    vi=pointsToComplex(vi) # size-P array
+
+    sz = len(vi)
+    dt = 1/sz
+    ti = np.linspace(0, 1, sz+1)[1:]  # size-P array
+    n = np.linspace(-Nf, Nf, 2*Nf + 1)   # size-Q array
+
+    # Getting coefficients
+    M = (tile_by(vi, n).T)*np.exp(matmul_1D(ti, n)*-2*np.pi*1j)*dt  # PxQ array
+    c = np.sum(M, axis=0)  # size-Q array  
+
+    # let t be a N array; allow scalars?
+    t = np.linspace(0, 1, N)
+
+    # Evaluating Fourier Series over t
+    
+    M = tile_by(c, t)*np.exp(matmul_1D(t, n)*2*np.pi*1j) # RxQ array
+    vo = np.sum(M, axis=1) # size-R array
+
+    return complexToPoints(vo) # back to points (Rx2 array)
+
+
+
 '''
 Returns parametric function constructed by exponential Fourier Series of 
 input vertices (vi, Nx2 array). Parametric function is evaluated over t (N array), 
 producing output vertices (vo, Nx2 array)
-
 N is number of frequencies used for F.S
 '''
 def fourier_series_wrapper(vi, N):
 
     # make complex:
-    vi=points_to_complex(vi) # N array, N=P
+    vi=pointsToComplex(vi) # N array, N=P
 
     sz = len(vi)
     dt = 1/sz
@@ -1668,21 +1582,49 @@ def fourier_series_wrapper(vi, N):
         M = tile_by(c, t)*np.exp(matmul_1D(t, n)*2*np.pi*1j) # MxN array, M=R, N=Q
         vo = np.sum(M, axis=1) # R x 1 (as 1D)
 
-        return complex_to_points(vo) # back to points (Nx2 array)
+        return complexToPoints(vo) # back to points (Nx2 array)
     return fourier_series_func
 
 
+# '''
+# Returns parametric function constructed by exponential Fourier Series of 
+# input vertices (vi, Nx2 array). Parametric function is evaluated over t (N array), 
+# producing output vertices (vo, Nx2 array)
+# N is number of frequencies used for F.S
+# '''
+# def fourier_series_wrapper(vi, N):
+
+#     # make complex:
+#     vi=pointsToComplex(vi) # N array, N=P
+
+#     sz = len(vi)
+#     dt = 1/sz
+#     ti = np.linspace(0, 1, sz+1)[1:]  # N array, N=P
+#     n = np.linspace(-N, N, 2*N + 1)   # N array, N=Q
+
+#     # Getting coefficients
+#     M = (tile_by(vi, n).T)*np.exp(matmul_1D(ti, n)*-2*np.pi*1j)*dt  # MxN array, M=P, N=Q
+#     c = np.sum(M, axis=0)  # N array, N=Q  
+
+#     # let t be a N array; allow scalars?
+
+#     def fourier_series_func(t):
+
+#         # Evaluating Fourier Series over t
+#         M = tile_by(c, t)*np.exp(matmul_1D(t, n)*2*np.pi*1j) # MxN array, M=R, N=Q
+#         vo = np.sum(M, axis=1) # R x 1 (as 1D)
+
+#         return complexToPoints(vo) # back to points (Nx2 array)
+#     return fourier_series_func
 
 
 
-# let v be Nx2 array, N>=2
-def arc_length(v, chk=False):
-    if chk:
-        if not is_Nx2_array(v): raise TypeError('v must be a Nx2 array.')
-        if len(v) < 2: raise ValueError('v must have two or more points; N >= 2')
 
-    return np.sum(magnitude(segments(v)))
         
+
+
+
+
     
 '''
 Let S1 be an Nx2 array at t=0 and S2 be an Mx2 array t=1
@@ -2858,7 +2800,7 @@ def transform2D(pan, orient, zoom, window):
 
 
 
-def affine(
+def affine2D(
     v,
     basePoint=None, # override centroid
     shift=[0, 0],
@@ -2900,22 +2842,92 @@ def affine(
 
 
 
+# checks out!
+def arcLength2D(v, closePath=False):
+    s = np.sum(np.sqrt((v[1:,0]-v[:-1,0])**2 + (v[1:,1]-v[:-1,1])**2))
+
+    if closePath: s += np.sqrt((v[0,0]-v[-1,0])**2 + (v[0,1]-v[-1,1])**2)
+    return s
+
+# let v be a Nx2 array of 2D coordinates
+# will return size-N array of values within [0, 1]
+# where each value is the parametric position (t-value)
+# on its parametrized domain (stretched uniformly across
+# total length; includes end-to-start segment for 
+# closePath=True)
+def parametricPositions2D(v, closePath=False):    
+    arcLengths = np.sqrt((v[1:,0]-v[:-1,0])**2 + (v[1:,1]-v[:-1,1])**2)
+    totalLength = np.sum(arcLengths)
+
+    if closePath: totalLength += np.sqrt((v[0,0]-v[-1,0])**2 + (v[0,1]-v[-1,1])**2)
+
+    # need to find a way to optimize this... (vectorize for loop)
+    cumulativeLength = 0
+    pos = [cumulativeLength]
+    for arcLength in arcLengths:
+        cumulativeLength += arcLength
+        pos.append(cumulativeLength)
+    
+    return np.array(pos)/totalLength
+
+# let v be a size-N (assumes ascended order)
+# will find value right before
+# specified "val"
+# index=True will return index instead
+#  OrAt=True will include "or-at" that value in the search
+def rightBefore(v, val, index=False, OrAt=False, rtol=rel_tol, atol=abs_tol):
+    try: 
+        ind = np.where(np.isclose(v, val, rtol=rtol, atol=atol))[0][0]
+        if OrAt is False: ind -= 1    
+    except: ind = np.where(v<val)[0][-1]
+
+    if index is False: return v[ind]
+    else: return ind
+
+# let v be a size-N (assumes ascended order)
+# will find value right after
+# specified "val"
+# index=True will return index instead
+#  OrAt=True will include "or-at" that value in the search
+def rightAfter(v, val, index=False, OrAt=False, rtol=rel_tol, atol=abs_tol):
+    try: 
+        ind = np.where(np.isclose(v, val, rtol=rtol, atol=atol))[0][0]
+        if OrAt is False: ind += 1    
+    except: ind = np.where(v<val)[0][-1] + 1
+        
+    if index is False: return v[ind]
+    else: return ind
 
 
 
-if __name__ == "__main__":
+
+# r between 0 and 1
+# v Nx2 array
+# ind valid integer index of v 
+# works for close-path
+def lerpBack2D(v, ind, r):
+    if ind == 0: indBefore = len(v)-1
+    else: indBefore = ind-1
+
+    return linearInterpolate2D(v[ind], v[indBefore], r)
+
+# r between 0 and 1
+# v Nx2 array
+# ind valid integer index of v 
+# works for close-path
+def lerpFore2D(v, ind, r):
+    if ind == len(v)-1: indAfter = 0
+    else: indAfter=ind+1
+
+    return linearInterpolate2D(v[ind], v[indAfter], r)
 
 
-    l = [
-        'c',   1,   1,
-        'p',   2,   2,
-        'c',  -1,   2,
-        'pa',  3,   0,
-        'c',   0,   4,
-        'p',  -2,  -3
-    ]
 
 
-    print(l[0::1])
-    print(l[0::2])
-    print(l[0::3])        
+# v Nx2 array (of points)
+# mats is list of 3x3 matrices
+# to not confuse with "transform2D"...
+def transformPoints2D(v, mats):
+    v = Nx2_to_Nx3(v)
+    for mat in mats: v = np.matmul(v, mat.T)# derived from property (A*B)T = (B)T*(A)T                    
+    return Nx3_to_Nx2(v)
