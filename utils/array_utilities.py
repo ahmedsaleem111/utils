@@ -244,7 +244,6 @@ def cyclic_slice(v, a, b):
     (specified relative to the previous '''
 ''' useful for constructs that have a cyclic nature (i.e. a closed path) '''
 def cyclic_shift(v, shift):
-    print(shift)
     
     # needs chks
     if isinstance(v, np.ndarray):
@@ -643,7 +642,7 @@ def perp(v):
 # let v be a numpy N x 2 array
 # flip about horizontal reference line. By default,
 # reference line is at y coordinate of center.
-def flip_vertical(v, ry=None):
+def flipVertical(v, ry=None):
     if ry==None:  [_,ry] = centroid(v)
     v[:,1] =  (v[:,1] - ry)*-1 + ry
     return v
@@ -651,7 +650,7 @@ def flip_vertical(v, ry=None):
 # let v be a numpy Nx2 array
 # flip about vertical reference line. By default,
 # reference line is at x coordinate of center.
-def flip_horizontal(v, rx=None):
+def flipHorizontal(v, rx=None):
     if rx==None:  [rx,_] = centroid(v)
     v[:,0] =  (v[:,0] - rx)*-1 + rx
     return v
@@ -1207,8 +1206,12 @@ Parametrics...
 
 
 
+class parametricSegment: pass
+class parametricSegment2D(parametricSegment): pass
+
 def linearInterpolateScalar(s0, s1, t):
     return (s1-s0)*t + s0
+
 
 
 def linearInterpolate2D(p0, p1, t):
@@ -1216,6 +1219,20 @@ def linearInterpolate2D(p0, p1, t):
     y = p0[1]+(p1[1]-p0[1])*t
     if isinstance(t, np.ndarray): return np.vstack((x,y)).T
     else: return np.array([x, y])
+
+
+
+class linearInterpolateSegment2D(parametricSegment2D):
+    def __init__(self, p0, p1, t0=0, t1=1):
+        self.t0, self.t1 = t0, t1
+        self.p0, self.p1 = p0, p1
+
+    def evaluate(self, res=100):
+        return linearInterpolate2D(self.p0, self.p1, np.linspace(self.t0, self.t1, res))
+    def arcLength(self, res=100):
+        return arcLength2D(self.evaluate(res))
+    
+
 
 
 def linearInterpolateArray(M0, M1, t):
@@ -1233,6 +1250,16 @@ def quadraticBezier2D(p0, p1, p2, t):
     else: return np.array([x, y])
 
 
+class quadraticBezierSegment2D(parametricSegment2D):
+    def __init__(self, p0, p1, p2, t0=0, t1=1):
+        self.t0, self.t1 = t0, t1
+        self.p0, self.p1, self.p2 = p0, p1, p2
+
+    def evaluate(self, res=100):
+        return quadraticBezier2D(self.p0, self.p1, self.p2, np.linspace(self.t0, self.t1, res))
+    def arcLength(self, res=100):
+        return arcLength2D(self.evaluate(res))
+    
 
 
 def cubicBezier2D(p0, p1, p2, p3, t):
@@ -1241,6 +1268,16 @@ def cubicBezier2D(p0, p1, p2, p3, t):
     if isinstance(t, np.ndarray): return np.vstack((x,y)).T
     else: return np.array([x, y])
 
+
+class cubicBezierSegment2D(parametricSegment2D):
+    def __init__(self, p0, p1, p2, p3, t0=0, t1=1):
+        self.t0, self.t1 = t0, t1
+        self.p0, self.p1, self.p2, self.p3 = p0, p1, p2, p3
+
+    def evaluate(self, res=100):
+        return cubicBezierSegment2D(self.p0, self.p1, self.p2, self.p3, np.linspace(self.t0, self.t1, res))
+    def arcLength(self, res=100):
+        return arcLength2D(self.evaluate(res))
 
 
 
@@ -1434,7 +1471,7 @@ Interpolations:
 '''
 Need to optimize to eliminate while loop...
 '''
-def upSampleCurve(v, N=1000, spread='uniform', interpolation='linear', closePath=False):
+def upSampleCurve(v, N=500, spread='uniform', interpolation='linear', closePath=False):
     if closePath: v = np.vstack((v, v[0])) # first point is also final point for closed path
 
     add_N = N - len(v) # number of points to add
@@ -1644,7 +1681,7 @@ def segmentsInterpolate(S1, S2, t, integers=True):
         return np.array([[i, i/(len(column)-1)] for i in range(len(column))])
 
     def initialize_Si(n1, n2, t):
-        ni = round(scalerp_func(n1, n2, t))
+        ni = round(linearInterpolateScalar(n1, n2, t))
         return np.array([np.linspace(0, 0, ni), np.linspace(0, 0, ni)]).T
 
     ''' boundary as in start or end '''
@@ -1659,8 +1696,8 @@ def segmentsInterpolate(S1, S2, t, integers=True):
                 indb = k
                 pos_ind_a = pos_inds_[inda, 1]
 
-                b_lerp_t = scalerp_func(pos_ind_a, pos_ind_, pos_ind_i)
-                b_lerp = lerp_func(S[inda, :], S[indb, :], b_lerp_t)
+                b_lerp_t = linearInterpolateScalar(pos_ind_a, pos_ind_, pos_ind_i)
+                b_lerp = linearInterpolate2D(S[inda, :], S[indb, :], b_lerp_t)
                 break
             else: pass
         return b_lerp
@@ -1682,7 +1719,7 @@ def segmentsInterpolate(S1, S2, t, integers=True):
                 pos_ind_i = pos_inds_i[i, 1]
 
                 end_lerp = boundary_lerp_calc(pos_ind_i, pos_inds2, S2)
-                Si[i, :] = lerp_func(start_lerp, end_lerp, t)
+                Si[i, :] = linearInterpolate2D(start_lerp, end_lerp, t)
     else:
         if n2==1:
             Si = initialize_Si(n1, n2, t)
@@ -1695,7 +1732,7 @@ def segmentsInterpolate(S1, S2, t, integers=True):
                 pos_ind_i = pos_inds_i[i, 1]
 
                 start_lerp = boundary_lerp_calc(pos_ind_i, pos_inds1, S1)
-                Si[i, :] = lerp_func(start_lerp, end_lerp, t)        
+                Si[i, :] = linearInterpolate2D(start_lerp, end_lerp, t)        
         
         else:
                         
@@ -1710,7 +1747,7 @@ def segmentsInterpolate(S1, S2, t, integers=True):
 
                 start_lerp = boundary_lerp_calc(pos_ind_i, pos_inds1, S1)
                 end_lerp = boundary_lerp_calc(pos_ind_i, pos_inds2, S2)
-                Si[i, :] = lerp_func(start_lerp, end_lerp, t)
+                Si[i, :] = linearInterpolate2D(start_lerp, end_lerp, t)
 
     if integers: Si = np.rint(Si).astype(int)
 
@@ -1750,12 +1787,12 @@ def segmentsInterpolate2(s1, s2, t, integers=True):
    
     #If lengths are equal, resort to standard array lerp
     if l1 == l2:
-        Si = array_lerp_func(s1, s2, t)
+        Si = linearInterpolateArray(s1, s2, t)
     
     #If lengths are not equal, create new interpolated array with length based upon lengths of other columns and t
     else:
         #Get new column length
-        P = round(lerp_func(l1, l2, t[0]))
+        P = round(linearInterpolate2D(l1, l2, t[0]))
         
         #Create positional ratios for the 2 input arrays and for the new column length
         p0 = createPosRatio(P)
@@ -1797,18 +1834,18 @@ def segmentsInterpolate2(s1, s2, t, integers=True):
             vlCol1s2 = col1s2[np.where(ps2 == lps2)][0]
             
             #Add lerp to new columns
-            startLerpCol0.append(lerp_func(vlCol0s1, vuCol0s1, lerp_func(lps1,ups1,i)))
-            startLerpCol1.append(lerp_func(vlCol1s1, vuCol1s1, lerp_func(lps1,ups1,i)))
+            startLerpCol0.append(linearInterpolate2D(vlCol0s1, vuCol0s1, linearInterpolate2D(lps1,ups1,i)))
+            startLerpCol1.append(linearInterpolate2D(vlCol1s1, vuCol1s1, linearInterpolate2D(lps1,ups1,i)))
             
-            endLerpCol0.append(lerp_func(vuCol0s2, vlCol0s2, lerp_func(lps2,ups2,i)))
-            endLerpCol1.append(lerp_func(vuCol1s2, vlCol1s2, lerp_func(lps2,ups2,i)))
+            endLerpCol0.append(linearInterpolate2D(vuCol0s2, vlCol0s2, linearInterpolate2D(lps2,ups2,i)))
+            endLerpCol1.append(linearInterpolate2D(vuCol1s2, vlCol1s2, linearInterpolate2D(lps2,ups2,i)))
 
         #Combine lerp lists into np arrays
         startLerp = np.column_stack((startLerpCol0,startLerpCol1))
         endLerp = np.column_stack((endLerpCol0,endLerpCol1))
         
         #Return final array lerp
-        Si = array_lerp_func(startLerp, endLerp, t)
+        Si = linearInterpolateArray(startLerp, endLerp, t)
 
     if integers: Si = np.rint(Si).astype(int)
 
@@ -2420,7 +2457,7 @@ def polygons_intersect_2(polyg1, polyg2, chk=False):
 Assumption:
     A contour is at-most only inside one contour; this won't work for multi-nested contours.
 '''
-def contours_to_shapes(*conts):
+def contoursToShapes(*conts):
     # list of all contour pairs (with indices stored)
     conts_pairs = list(itr.combinations([[i, el] for i, el in enumerate(conts)], 2)) 
 
@@ -2499,7 +2536,7 @@ def polyMorph(P1, P2, t):
     P1 = wind(P1, P2)
     
     #Linearly interpolate results
-    return array_lerp_func(P1, P2, t)
+    return linearInterpolateArray(P1, P2, t)
     
 # Get polygon perimeter
 # ring is a closed polygon
@@ -2526,7 +2563,7 @@ def distanceBetween(a, b):
     y1 = float(a[1])
     y2 = float(b[1])
     
-    return math.sqrt((x2 - x1)**2 + (y2 - y1)**2);
+    return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
   
 # Add points to polygon
 # ring is a closed polygon, numPoints is number of points to add
@@ -2765,7 +2802,6 @@ def dynamicPoints2(px=0, py=0, shifts=[]):
 
         prevPoint = [prevPoint[0] + x_shift, prevPoint[1] + y_shift]
         prevAngle = rad2deg(np.arctan2(y_shift, x_shift)) # choosing correct quadrant        
-        print(prevAngle)
 
         points.append(prevPoint)
 
@@ -2931,3 +2967,45 @@ def transformPoints2D(v, mats):
     v = Nx2_to_Nx3(v)
     for mat in mats: v = np.matmul(v, mat.T)# derived from property (A*B)T = (B)T*(A)T                    
     return Nx3_to_Nx2(v)
+
+
+
+
+
+'''
+First input are list of parametric funcs (must be vector2D)
+Second element is resolution to calculate arc-length of parametric function
+Third element is approximate number of points of output (not counting vertices).
+'Approximate' because this number is split proportionately
+over the arc lengths of the individual curves and those individual
+amounts can be rounded up or down.
+DISCLAIMER: will treat end points (vertices) of successive curves as
+successive points, so will connect them however far apart they are. If this is not
+the intention (meaning no gap wanted), do due diligence to make sure the end-points are the same.
+Remove duplicates will remove these duplicate points after (not yet implemented...)
+'''
+
+''' needs to be optimized... '''
+def parametricJoin2D(*crvs, res=100, N=1000):
+
+    lens = np.array([crv.arcLength(res) for crv in crvs]) # optimize...
+    lp =lens/np.sum(lens) # length proportions
+
+    v = np.array([[0, 0]])
+    for i, crv in enumerate(crvs):
+        assert isinstance(crv, parametricSegment2D) # debugging
+
+        crv_v = crv.evaluate(round(lp[i]*N)) # number of points for ith curve; proportional to its length
+        v=np.vstack((v, crv_v))
+
+    return v[1:]
+
+
+
+''' let v be list of Nx2 array, will return [dx, dy] shift required to place
+    at center of screen
+'''
+def getScreenCenterPlacement(*v, w=1920, h=1080, method='centroid'):
+    if method=='centroid': c = centroid(vstack_Nx2_arrays(*v))
+    elif method=='center': c = center(vstack_Nx2_arrays(*v))
+    return [w/2 - c[0], h/2 - c[1]]
